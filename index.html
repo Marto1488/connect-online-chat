@@ -1,0 +1,437 @@
+
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect - Live Chat</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+  background: #101426;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 18px;
+}
+.app {
+  width: 100%;
+  max-width: 650px;
+  background: #1b223a;
+  border: 1px solid #343d5c;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px #0006;
+}
+header {
+  padding: 22px;
+  background: linear-gradient(120deg,#6941d9,#287bdc);
+}
+header h1 { margin: 0 0 7px; font-size: 27px; }
+header p { margin: 0; color: #e1e5ff; font-size: 14px; }
+.status {
+  padding: 12px 20px;
+  background: #252e49;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #c5cde8;
+}
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  background: #f4b84c;
+  border-radius: 50%;
+  margin-right: 7px;
+}
+.dot.online { background: #38d99a; }
+.setup { padding: 22px; }
+label { display: block; margin: 12px 0 7px; color: #cbd4f2; font-size: 14px; }
+input {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #414d70;
+  border-radius: 10px;
+  background: #11182c;
+  color: white;
+  font-size: 15px;
+  outline: none;
+}
+input:focus { border-color: #8c70ff; }
+button {
+  padding: 13px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: #7656e8;
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.12); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.actions { display: flex; gap: 10px; margin-top: 14px; }
+.actions button { flex: 1; }
+.join { background: #287bdc; }
+.room-box {
+  display: none;
+  margin-top: 16px;
+  padding: 14px;
+  background: #11182c;
+  border: 1px dashed #8069ed;
+  border-radius: 12px;
+}
+.room-code {
+  color: #a995ff;
+  font-size: 21px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  overflow-wrap: anywhere;
+  margin: 7px 0;
+}
+.chat { display: none; }
+.messages {
+  height: 340px;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.message {
+  background: #293451;
+  padding: 11px 14px;
+  border-radius: 12px;
+  max-width: 85%;
+  align-self: flex-start;
+  overflow-wrap: anywhere;
+}
+.message.mine {
+  background: #6449c8;
+  align-self: flex-end;
+}
+.message .meta {
+  font-size: 11px;
+  color: #c4c9e2;
+  margin-bottom: 5px;
+}
+.system {
+  text-align: center;
+  color: #9da9ca;
+  font-size: 12px;
+}
+.send-area {
+  padding: 15px;
+  display: flex;
+  gap: 9px;
+  background: #252e49;
+}
+.send-area input { flex: 1; min-width: 0; }
+.send-area button { background: #287bdc; }
+.hint {
+  color: #9da9ca;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 15px;
+}
+footer {
+  padding: 13px;
+  text-align: center;
+  font-size: 11px;
+  color: #8792b1;
+}
+@media(max-width:450px) {
+  .actions { flex-direction: column; }
+  .messages { height: 55vh; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>💬 Connect</h1>
+    <p>Твоят онлайн чат – свържи се с приятели в реално време.</p>
+  </header>
+
+  <div class="status">
+    <span><span class="dot" id="dot"></span><span id="status">Не си свързан</span></span>
+    <span id="users">Участници: 0</span>
+  </div>
+
+  <section class="setup" id="setup">
+    <label for="name">Твоето име</label>
+    <input id="name" maxlength="20" placeholder="Например: Иван">
+
+    <div class="actions">
+      <button id="create">✨ Създай нова стая</button>
+      <button class="join" id="showJoin">Влез в стая</button>
+    </div>
+
+    <div id="roomBox" class="room-box">
+      <strong>Твоят код за стаята:</strong>
+      <div id="roomCode" class="room-code"></div>
+      <button id="copy">📋 Копирай кода</button>
+      <p class="hint">Изпрати този код на приятелите си. Те трябва да го въведат, за да се присъединят. Остави тази страница отворена.</p>
+    </div>
+
+    <div id="joinBox" style="display:none;margin-top:18px">
+      <label for="code">Код на стаята</label>
+      <input id="code" placeholder="Постави кода, който получи">
+      <button id="join" style="width:100%;margin-top:10px">Свържи се</button>
+    </div>
+
+    <p class="hint">Един човек създава стая, а останалите се присъединяват с неговия код. Не затваряйте страницата на създателя на стаята.</p>
+  </section>
+
+  <section class="chat" id="chat">
+    <div class="messages" id="messages">
+      <div class="system">Добре дошли в Connect!</div>
+    </div>
+    <div class="send-area">
+      <input id="text" maxlength="500" placeholder="Напиши съобщение..." autocomplete="off">
+      <button id="send">Изпрати ➤</button>
+    </div>
+  </section>
+  <footer>CONNECT • HTML5 • JavaScript • PeerJS</footer>
+</div>
+
+<script>
+let peer = null;
+let connection = null;
+let connections = new Set();
+let isHost = false;
+let myName = "";
+let roomId = "";
+let history = [];
+
+const $ = id => document.getElementById(id);
+
+function status(message, online = false) {
+  $("status").textContent = message;
+  $("dot").className = online ? "dot online" : "dot";
+}
+
+function showChat() {
+  $("setup").style.display = "none";
+  $("chat").style.display = "block";
+}
+
+function addMessage(message) {
+  const el = document.createElement("div");
+  el.className = "message" + (message.name === myName ? " mine" : "");
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = message.name + " • " + message.time;
+
+  const body = document.createElement("div");
+  body.textContent = message.text;
+
+  el.append(meta, body);
+  $("messages").appendChild(el);
+  $("messages").scrollTop = $("messages").scrollHeight;
+}
+
+function systemMessage(text) {
+  const el = document.createElement("div");
+  el.className = "system";
+  el.textContent = text;
+  $("messages").appendChild(el);
+  $("messages").scrollTop = $("messages").scrollHeight;
+}
+
+function updateCount() {
+  const count = isHost ? connections.size + 1 : Number($("users").dataset.count || 2);
+  $("users").textContent = "Участници: " + count;
+}
+
+function broadcast(packet) {
+  connections.forEach(conn => {
+    if (conn.open) conn.send(packet);
+  });
+}
+
+function receiveHost(packet) {
+  if (!packet || !packet.type) return;
+
+  if (packet.type === "message") {
+    history.push(packet.message);
+    addMessage(packet.message);
+    broadcast(packet);
+  }
+
+  if (packet.type === "join") {
+    const text = packet.name + " се присъедини към стаята.";
+    systemMessage(text);
+    broadcast({type:"system", text});
+    broadcast({type:"count", count:connections.size + 1});
+  }
+}
+
+function createRoom() {
+  myName = $("name").value.trim();
+  if (!myName) return alert("Моля, въведи своето име.");
+
+  $("create").disabled = true;
+  $("showJoin").disabled = true;
+  status("Създаваме стая...");
+
+  isHost = true;
+  roomId = "connect-" + Math.random().toString(36).slice(2, 10);
+  peer = new Peer(roomId);
+
+  peer.on("open", id => {
+    $("roomBox").style.display = "block";
+    $("roomCode").textContent = id;
+    status("Стаята е активна", true);
+    $("users").textContent = "Участници: 1";
+    showChat();
+    systemMessage("Ти създаде стаята. Изпрати кода на приятелите си!");
+  });
+
+  peer.on("connection", conn => {
+    connections.add(conn);
+
+    conn.on("open", () => {
+      conn.send({type:"history", messages:history});
+      conn.send({type:"count", count:connections.size + 1});
+    });
+
+    conn.on("data", packet => receiveHost(packet));
+
+    conn.on("close", () => {
+      connections.delete(conn);
+      const text = "Един участник напусна стаята.";
+      systemMessage(text);
+      broadcast({type:"system", text});
+      broadcast({type:"count", count:connections.size + 1});
+      updateCount();
+    });
+  });
+
+  peer.on("error", err => {
+    status("Грешка при връзката");
+    alert("Не успяхме да създадем стая: " + err.type);
+    $("create").disabled = false;
+    $("showJoin").disabled = false;
+  });
+}
+
+function joinRoom() {
+  myName = $("name").value.trim();
+  roomId = $("code").value.trim().toLowerCase();
+
+  if (!myName) return alert("Моля, въведи своето име.");
+  if (!roomId) return alert("Моля, въведи код на стаята.");
+
+  $("join").disabled = true;
+  status("Свързваме се...");
+
+  isHost = false;
+  peer = new Peer();
+
+  peer.on("open", () => {
+    connection = peer.connect(roomId, {reliable:true});
+
+    connection.on("open", () => {
+      status("Свързан с чат стаята", true);
+      showChat();
+      connection.send({type:"join", name:myName});
+    });
+
+    connection.on("data", packet => {
+      if (!packet || !packet.type) return;
+
+      if (packet.type === "history") {
+        history = packet.messages || [];
+        history.forEach(addMessage);
+      }
+
+      if (packet.type === "message") {
+        addMessage(packet.message);
+      }
+
+      if (packet.type === "system") {
+        systemMessage(packet.text);
+      }
+
+      if (packet.type === "count") {
+        $("users").dataset.count = packet.count;
+        $("users").textContent = "Участници: " + packet.count;
+      }
+    });
+
+    connection.on("close", () => {
+      status("Връзката е прекъсната");
+      systemMessage("Връзката със създателя на стаята беше прекъсната.");
+    });
+  });
+
+  peer.on("error", err => {
+    status("Неуспешно свързване");
+    alert("Не успяхме да се свържем. Провери кода и дали създателят е онлайн. Грешка: " + err.type);
+    $("join").disabled = false;
+  });
+}
+
+function sendMessage() {
+  const value = $("text").value.trim();
+  if (!value) return;
+
+  const message = {
+    name:myName,
+    text:value,
+    time:new Date().toLocaleTimeString("bg-BG", {
+      hour:"2-digit", minute:"2-digit"
+    })
+  };
+
+  if (isHost) {
+    history.push(message);
+    addMessage(message);
+    broadcast({type:"message", message});
+  } else if (connection && connection.open) {
+    connection.send({type:"message", message});
+  } else {
+    alert("Нямаш активна връзка.");
+    return;
+  }
+
+  $("text").value = "";
+  $("text").focus();
+}
+
+$("create").addEventListener("click", createRoom);
+
+$("showJoin").addEventListener("click", () => {
+  $("joinBox").style.display = "block";
+});
+
+$("join").addEventListener("click", joinRoom);
+$("send").addEventListener("click", sendMessage);
+
+$("text").addEventListener("keydown", e => {
+  if (e.key === "Enter") sendMessage();
+});
+
+$("copy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(roomId);
+    $("copy").textContent = "✓ Копирано!";
+  } catch {
+    alert("Кодът е: " + roomId);
+  }
+});
+
+window.addEventListener("beforeunload", () => {
+  if (peer) peer.destroy();
+});
+</script>
+</body>
+</html>
