@@ -216,12 +216,10 @@ function status(message, online = false) {
   $("status").textContent = message;
   $("dot").className = online ? "dot online" : "dot";
 }
-
 function showChat() {
-  $("setup").style.display = "none";
+  $("setup").style.display = isHost ? "block" : "none";
   $("chat").style.display = "block";
 }
-
 function addMessage(message) {
   const el = document.createElement("div");
   el.className = "message" + (message.name === myName ? " mine" : "");
